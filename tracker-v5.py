@@ -3,6 +3,7 @@ import re
 import csv
 import os
 import pickle
+from datetime import datetime
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -12,6 +13,7 @@ from googleapiclient.errors import HttpError
 # Define the scope
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 TOKEN_FILE = 'token.pickle'
+OUTPUT_FILE = 'transactions-2.csv'
 
 # Email Authentication Flow
 def authenticate_gmail():
@@ -39,6 +41,14 @@ def authenticate_gmail():
     return creds
 
 def search_emails(service, user_id, query):
+    
+    # Get today's date in YYYY/MM/DD format
+    #today = datetime.today().date().strftime('%Y/%m/%d')
+    today = '2024/06/22'
+    
+    # Append the received date filter to the query
+    query += f" after:{today}"
+    
     results = service.users().messages().list(userId=user_id, q=query).execute()
     messages = results.get('messages', [])
     return messages
@@ -75,7 +85,7 @@ def check_emails(service):
         {'bank': 'Kotak', 'subject': 'Kotak Bank Credit Card Transaction Alert', 'sender': 'creditcardalerts@kotak.com'},
         {'bank': 'AU Bank', 'subject': 'AU Bank Credit Card Transaction Alert', 'sender': 'creditcard.alerts@aubank.in'}
     ]
-    
+
     results = []
     for query in queries:
         search_query = f"from:{query['sender']} subject:{query['subject']}"
@@ -93,20 +103,22 @@ def check_emails(service):
     return results
 
 # Export the data to CSV file transactions.csv
-def export_to_csv(transactions, output_file='transactions.csv'):
+def export_to_csv(transactions, output_file=OUTPUT_FILE):
     if not transactions:
         print('No transactions to export.')
         return
 
     fields = ['bank', 'amount', 'vendor', 'date_time']
+    file_exists = os.path.isfile(output_file)
 
-    with open(output_file, mode='w', newline='') as file:
+    with open(output_file, mode='a', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
+        if not file_exists:  # If file doesn't exist, write header
+            writer.writeheader()
         for transaction in transactions:
             writer.writerow(transaction)
 
-    print(f'Transactions exported to {output_file} successfully.')
+    print(f'Transactions appended to {output_file} successfully.')
 
 def main():
     creds = authenticate_gmail()
