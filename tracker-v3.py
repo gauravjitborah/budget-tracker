@@ -55,7 +55,8 @@ def list_messages_with_subject_and_sender(service, user_id, subject, sender):
         # List messages matching the criteria
         response = service.users().messages().list(
             userId=user_id,
-            q=f'subject:"{subject}" from:"{sender}" is:unread'
+            # is:unread = to list unread messages
+            q=f'subject:"{subject}" from:"{sender}"'
         ).execute()
         messages = response.get('messages', [])
 
