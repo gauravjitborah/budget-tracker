@@ -1,6 +1,10 @@
-# This version would not need authentication via browser every time.
+'''
+This script has 3 parts to it:
+1) Email Authentication Flow
+2) Check Emails for potential match (on a daily basis)
+3) Export the data to Google Sheet - BudgetTracker
+'''
 import re
-import csv
 import os
 import pickle
 from datetime import datetime
@@ -10,10 +14,16 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Define the scope
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+# Imports for GSheet
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+# Define the contant variables
+SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/gmail.readonly']
 TOKEN_FILE = 'token.pickle'
 OUTPUT_FILE = 'transactions-2.csv'
+CREDENTIALS = 'credentials.json'
+SERVICE_ACCOUNT='monthly-budget-tool-ed454f8c302c.json'
 
 # Email Authentication Flow
 def authenticate_gmail():
@@ -31,7 +41,7 @@ def authenticate_gmail():
             creds.refresh(Request())
         else:
             # Initiate the authentication flow
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS, SCOPES)
             creds = flow.run_local_server(port=0)
         
         # Save the credentials for the next run
@@ -43,8 +53,9 @@ def authenticate_gmail():
 def search_emails(service, user_id, query):
     
     # Get today's date in YYYY/MM/DD format
-    #today = datetime.today().date().strftime('%Y/%m/%d')
-    today = '2024/06/21'
+    #today = '2024/06/21'
+    today = datetime.today().date().strftime('%Y/%m/%d')
+
     
     # Append the received date filter to the query
     query += f" after:{today}"
@@ -70,20 +81,20 @@ def parse_email_content(bank_name, snippet):
     if match:
         amount, location, date_time = match.groups()
         return {
-            'bank': bank_name,
-            'amount': amount,
-            'vendor': location,
-            'date_time': date_time
+            'Bank': bank_name,
+            'Amount': amount,
+            'Vendor': location,
+            'Date': date_time
         }
     return None
 
 def check_emails(service):
     # List of Bank email IDs and Subject
     queries = [
-        {'bank': 'HDFC', 'subject': 'Alert : Update on your HDFC Bank Credit Card', 'sender': 'alerts@hdfcbank.net'},
-        {'bank': 'HSBC', 'subject': 'You have used your HSBC Credit Card ending with 9866 for a purchase transaction', 'sender': 'hsbc@mail.hsbc.co.in'},
-        {'bank': 'Kotak', 'subject': 'Kotak Bank Credit Card Transaction Alert', 'sender': 'creditcardalerts@kotak.com'},
-        {'bank': 'AU Bank', 'subject': 'AU Bank Credit Card Transaction Alert', 'sender': 'creditcard.alerts@aubank.in'}
+        {'Bank': 'HDFC', 'subject': 'Alert : Update on your HDFC Bank Credit Card', 'sender': 'alerts@hdfcbank.net'},
+        {'Bank': 'HSBC', 'subject': 'You have used your HSBC Credit Card ending with 9866 for a purchase transaction', 'sender': 'hsbc@mail.hsbc.co.in'},
+        {'Bank': 'Kotak', 'subject': 'Kotak Bank Credit Card Transaction Alert', 'sender': 'creditcardalerts@kotak.com'},
+        {'Bank': 'AU Bank', 'subject': 'AU Bank Credit Card Transaction Alert', 'sender': 'creditcard.alerts@aubank.in'}
     ]
 
     results = []
@@ -97,34 +108,40 @@ def check_emails(service):
             for msg in messages:
                 msg_id = msg['id']
                 snippet = get_message_details(service, 'me', msg_id)
-                parsed_data = parse_email_content(query['bank'], snippet)
+                parsed_data = parse_email_content(query['Bank'], snippet)
                 if parsed_data:
                     results.append(parsed_data)
     return results
 
-# Export the data to CSV file transactions.csv
-def export_to_csv(transactions, output_file=OUTPUT_FILE):
+# Export the data to Google Sheet - BudgetTracker
+def upload_to_gsheet(transactions):
     if not transactions:
         print('No transactions to export.')
         return
 
-    fields = ['bank', 'amount', 'vendor', 'date_time']
-    file_exists = os.path.isfile(output_file)
+    # Define the scope and credentials file (downloaded from Google Cloud Console)
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT, SCOPES)
 
-    with open(output_file, mode='a', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
-        if not file_exists:  # If file doesn't exist, write header
-            writer.writeheader()
-        for transaction in transactions:
-            writer.writerow(transaction)
+    # Authenticate using the credentials
+    client = gspread.authorize(creds)
 
-    print(f'Transactions appended to {output_file} successfully.')
+    # Open the Google Sheet (replace 'MySheet' with your actual Google Sheet name)
+    sheet = client.open('BudgetTracker').sheet1
+
+    for transaction in transactions:
+        #print(transaction)
+        sheet.append_row([transaction['Bank'], float(transaction['Amount']), transaction['Vendor'], transaction['Date']])
+    
+    print("Data successfully appended to Google Sheet.")
+
+
 
 def main():
     creds = authenticate_gmail()
     service = build('gmail', 'v1', credentials=creds)
     results=check_emails(service)
-    export_to_csv(results)
+    upload_to_gsheet(results)
 
 if __name__ == '__main__':
     main()
