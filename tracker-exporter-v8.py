@@ -205,7 +205,7 @@ def upload_to_gsheet(transactions,last_row):
         if last_entry >= current_entry:
             continue
         else:
-            sheet.append_row([transaction['Bank'], float(transaction['Amount']), transaction['Vendor'], transaction['Date']])
+            sheet.append_row([transaction['Date'], transaction['Bank'], float(transaction['Amount']), transaction['Vendor']])
     
     print("Data successfully appended to Google Sheet.")
 
