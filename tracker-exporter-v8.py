@@ -193,7 +193,7 @@ def upload_to_gsheet(transactions,last_row):
     # Authenticate using the credentials
     client = gspread.authorize(creds)
 
-    # Open the Google Sheet (replace 'MySheet' with your actual Google Sheet name)
+    # Open 'BudgetTracker' Google Sheet
     sheet = client.open('BudgetTracker').sheet1
 
     for transaction in transactions:

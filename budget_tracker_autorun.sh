@@ -1,4 +1,4 @@
 #!/bin/bash
 source path/to/venv/bin/activate
-python /path/to/your/script/email_to_gsheet.py
+python /Users/gauravjitborah/budget-tracker/tracker-exporter-v8.py
 deactivate
