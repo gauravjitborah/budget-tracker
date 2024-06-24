@@ -5,6 +5,6 @@ transactions*
 token.pickle
 Email-Template
 API Key
-path/
+virtualEnv/
 Init Steps
 check-datetime.py
